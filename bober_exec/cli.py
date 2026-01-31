@@ -7,60 +7,94 @@ import sys
 import signal
 
 
-# -----------------------------
-#  NMAP SERVICE + PORT MAPPING
-# -----------------------------
-
-port_map = {
-    "winrm": ["5985", "5986"],
-    "rdp": ["3389"],
-    "smb": ["445"],
-    "ftp": ["21"],
-    "nfs": ["2049"],
-    "wmi": ["135"],
-}
-
-service_map = {
-    "mssql": ["ms-sql-s"],
-    "ldap": ["ldap"],
-    "smb": ["microsoft-ds", "microsoft-ds?"],
-    "rdp": ["ms-wbt-server"],
-    "ftp": ["ftp"],
-    "vnc": ["vnc"],
-    "nfs": ["nfs"],
-    "wmi": ["wmi", "wmic"],
-}
-
-
-# -----------------------------
-#  NMAP PARSER
-# -----------------------------
-
 def parse_nmap_file(filename):
     results = {}
 
+    # -----------------------------
+    #  PORT-BASED MAPPING (STABLE)
+    # -----------------------------
+    port_map = {
+        "ftp": ["21"],
+        "wmi": ["135"],
+        "smb": ["445"],
+        "ldap": ["389"],
+        "mssql": ["1433"],
+        "nfs": ["2049"],
+        "rdp": ["3389"],
+        "vnc": ["5900"],
+        "winrm": ["5985", "5986"],
+    }
+
+    # -----------------------------
+    #  SERVICE-BASED MAPPING
+    # -----------------------------
+    service_map = {
+        "ftp": ["ftp", "ftp-alt", "ftps"],
+        "smb": ["microsoft-ds", "microsoft-ds?"],
+        "ldap": ["ldap"],
+        "mssql": ["ms-sql-s"],
+        "nfs": ["nfs"],
+        "rdp": ["ms-wbt-server"],
+        "vnc": ["vnc", "rfb"],
+    }
+
+    # -----------------------------
+    #  VERSION-BASED FINGERPRINTS
+    # -----------------------------
+    version_fingerprints = {
+        "winrm": [
+            r"Microsoft HTTPAPI",
+            r"WinRM",
+        ],
+    }
+
+    # -----------------------------
+    #  PARSE FILE
+    # -----------------------------
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
-            match = re.match(r"(\d+)/tcp\s+open\s+([^\s]+)", line)
+            # PORT / SERVICE / VERSION (version optional)
+            match = re.match(
+                r"^(\d+)/tcp\s+open\s+(\S+)(?:\s+(.*))?$",
+                line
+            )
             if not match:
                 continue
 
             port = match.group(1)
             service = match.group(2)
+            rest = match.group(3) or ""
 
-            # Port-based detection
+            version = rest
+            
+            # -----------------------------
+            #  PORT-BASED DETECTION
+            # -----------------------------
             for proto, ports in port_map.items():
                 if port in ports:
                     results.setdefault(proto, []).append(port)
 
-            # Service-based detection
+            # -----------------------------
+            #  SERVICE-BASED DETECTION
+            # -----------------------------
             for proto, patterns in service_map.items():
                 if service in patterns:
                     results.setdefault(proto, []).append(port)
 
-    # Remove duplicate ports
+            # -----------------------------
+            #  VERSION-BASED DETECTION (OPTIONAL)
+            # -----------------------------
+            if version:
+                for proto, patterns in version_fingerprints.items():
+                    for pat in patterns:
+                        if re.search(pat, version, re.IGNORECASE):
+                            results.setdefault(proto, []).append(port)
+
+    # -----------------------------
+    #  DEDUPLICATE PORTS
+    # -----------------------------
     for proto in results:
-        results[proto] = list(set(results[proto]))
+        results[proto] = sorted(set(results[proto]), key=int)
 
     return results
 
@@ -153,7 +187,7 @@ def main():
                     user_command=args.command
                 )
 
-        print("\n\033[1m\033[33m[INFO]\033[0m All ports have been tested. Execution completed.\n")        
+        print("\n\033[1m\033[33m[INFO]\033[0m All ports have been tested. Execution completed.\n")
     except KeyboardInterrupt:
         print("\n\033[1m\033[33m[INFO]\033[0m Execution interrupted by user. Exiting...\n")
         sys.exit(0)
