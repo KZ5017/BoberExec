@@ -1,0 +1,12 @@
+[project]
+name = "bober-exec"
+version = "1.0.0"
+description = "Nmap → NXC automation tool"
+authors = [
+    { name = ""Bobernator" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[project.scripts]
+bober-exec = "bober_exec.cli:main"
