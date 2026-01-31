@@ -3,7 +3,7 @@ name = "bober-exec"
 version = "1.0.0"
 description = "Nmap → NXC automation tool"
 authors = [
-    { name = ""Bobernator" }
+    { name = "Bobernator" }
 ]
 readme = "README.md"
 requires-python = ">=3.8"
